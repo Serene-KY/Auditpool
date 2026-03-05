@@ -1,35 +1,31 @@
-import { FastifyRequest, FastifyReply } from "fastify";
-import { pool } from "./db";
+import Fastify from 'fastify';
+import { pool } from './db';
+import { requireTenant } from './tenant';
 
-// Tenant type and helpers
-export type TenantId = string;
+const server = Fastify({ logger: true });
 
-export function getTenantFromHeader(header: string | undefined): TenantId | null {
-  if (!header) return null;
-  const trimmed = header.trim();
-  return trimmed || null;
-}
+// Health check
+server.get('/health', async () => ({ ok: true }));
 
-export function requireTenant(header: string | undefined): TenantId {
-  const tenant = getTenantFromHeader(header);
-  if (!tenant) throw new Error("Tenant header required");
-  return tenant;
-}
-
-// Set tenant context per request
-export async function setTenantContext(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
-  let client;
+// Frameworks endpoint (minimal working version)
+server.get('/frameworks', async (request, reply) => {
   try {
-    const tenantId = requireTenant(request.headers["x-tenant-id"] as string | undefined);
-    client = await pool.connect();
+    const tenantId = requireTenant(request.headers['x-tenant-id'] as string | undefined);
+    const client = await pool.connect();
 
-    await client.query("select set_tenant_context($1)", [tenantId]);
-    request.decorate("dbClient", client); // attach client per request
+    const result = await client.query('SELECT * FROM frameworks'); // simple query
+    client.release();
+
+    return result.rows;
   } catch (err) {
-    if (client) client.release();
-    return reply.status(400).send({ error: err instanceof Error ? err.message : "Unknown error" });
+    return reply.status(400).send({ error: err instanceof Error ? err.message : 'Unknown error' });
   }
-}
+});
+
+// Start server
+const port = Number(process.env.PORT) || 3000;
+server.listen({ port, host: '0.0.0.0' })
+  .then(() => console.log(`API running on http://localhost:${port}`))
+  .catch(err => console.error(err));
+
+export { server };
