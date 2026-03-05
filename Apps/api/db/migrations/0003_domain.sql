@@ -88,17 +88,22 @@ ALTER TABLE risks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE controls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tests ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS frameworks_tenant_rls ON frameworks;
 CREATE POLICY frameworks_tenant_rls ON frameworks
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS audit_scopes_tenant_rls ON audit_scopes;
 CREATE POLICY audit_scopes_tenant_rls ON audit_scopes
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS risks_tenant_rls ON risks;
 CREATE POLICY risks_tenant_rls ON risks
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS controls_tenant_rls ON controls;
 CREATE POLICY controls_tenant_rls ON controls
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tests_tenant_rls ON tests;
 CREATE POLICY tests_tenant_rls ON tests
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);

@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "migrate": "ts-node --transpile-only src/migrate.ts",
+    "dev": "pnpm run migrate && ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "test": "echo \"No tests yet\" && exit 0",
     "lint": "eslint src"
@@ -11,10 +12,13 @@
   "dependencies": {
     "dotenv": "^17.3.1",
     "fastify": "^5.7.4",
+    "pg": "^8.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/pg": "^8.18.0",
     "@types/node": "^25.3.3",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   }

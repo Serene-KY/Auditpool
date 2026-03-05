@@ -26,8 +26,10 @@ CREATE TABLE IF NOT EXISTS signoffs (
 ALTER TABLE workflow_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signoffs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS workflow_events_tenant_rls ON workflow_events;
 CREATE POLICY workflow_events_tenant_rls ON workflow_events
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS signoffs_tenant_rls ON signoffs;
 CREATE POLICY signoffs_tenant_rls ON signoffs
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);

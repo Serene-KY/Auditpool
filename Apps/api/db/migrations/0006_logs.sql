@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_by uuid
 );
 
-CREATE INDEX idx_audit_logs_tenant ON audit_logs(tenant_id);
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant ON audit_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
 
 -- AI logs
 CREATE TABLE IF NOT EXISTS ai_logs (
@@ -26,15 +26,17 @@ CREATE TABLE IF NOT EXISTS ai_logs (
   created_by uuid
 );
 
-CREATE INDEX idx_ai_logs_tenant ON ai_logs(tenant_id);
-CREATE INDEX idx_ai_logs_created ON ai_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_tenant ON ai_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_created ON ai_logs(created_at DESC);
 
 -- RLS
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS audit_logs_tenant_rls ON audit_logs;
 CREATE POLICY audit_logs_tenant_rls ON audit_logs
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS ai_logs_tenant_rls ON ai_logs;
 CREATE POLICY ai_logs_tenant_rls ON ai_logs
   FOR ALL USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
