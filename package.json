@@ -1,0 +1,19 @@
+{
+  "name": "auditpool",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm exec concurrently \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "eslint . && prettier --check .",
+    "lint:fix": "eslint . --fix && prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.18.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
