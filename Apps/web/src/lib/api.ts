@@ -34,6 +34,24 @@ export interface ReviewEvidenceResult {
   recommendations: string[];
 }
 
+export interface PreparerResult {
+  summary: string;
+  suggestedControls: Array<{ riskId: string; controlCode: string; description?: string }>;
+}
+
+export async function runPreparer(): Promise<PreparerResult> {
+  const res = await fetch(`${API_URL}/mcp/prepare`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `API error: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function reviewEvidence(testId: string): Promise<ReviewEvidenceResult> {
   const res = await fetch(`${API_URL}/ai/review-evidence`, {
     method: 'POST',

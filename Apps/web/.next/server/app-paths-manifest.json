@@ -1,8 +1,1 @@
-{
-  "/tests/page": "app/tests/page.js",
-  "/controls/page": "app/controls/page.js",
-  "/risks/page": "app/risks/page.js",
-  "/audit-scopes/page": "app/audit-scopes/page.js",
-  "/frameworks/page": "app/frameworks/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
-}
+{}

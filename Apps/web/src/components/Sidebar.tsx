@@ -13,6 +13,7 @@ const navItems = [
   { href: '/tests', label: 'Tests' },
   { href: '/evidence', label: 'Evidence' },
   { href: '/conclusions', label: 'Conclusions' },
+  { href: '/preparer', label: 'Preparer' },
 ];
 
 export default function Sidebar() {
