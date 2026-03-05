@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { getTenantFromHeader, setTenantContext } from './tenant';
+import { getTenantFromHeader, requireTenant, setTenantContext } from './tenant';
 import { supabase } from './db';
 
 const server = Fastify({ logger: true });
@@ -44,6 +44,29 @@ const tenantsHandler = async (request: any, reply: any) => {
   }
 };
 server.get('/tenants', { preHandler: setTenantContext }, tenantsHandler);
+
+// Create framework endpoint (Supabase)
+server.post('/frameworks', async (request, reply) => {
+  try {
+    const tenantId = requireTenant(request.headers['x-tenant-id'] as string | undefined);
+    const { name, description } = request.body as { name: string; description?: string };
+
+    if (!name) {
+      return reply.status(400).send({ error: 'Framework name is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('frameworks')
+      .insert({ tenant_id: tenantId, name, description: description ?? null })
+      .select()
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return data;
+  } catch (err) {
+    return reply.status(400).send({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+});
 
 // Start server
 const port = Number(process.env.PORT) || 3001;
