@@ -41,15 +41,13 @@ export const createControlSchema = z.object({
   controlType: z.string().max(100).optional(),
 });
 
-const soft = `AND is_deleted = false`;
-
 export async function get_frameworks(
   db: PoolClient,
   params: z.infer<typeof getFrameworksSchema>
 ) {
   const { tenantId } = getFrameworksSchema.parse(params);
   const r = await db.query(
-    `SELECT id, tenant_id, name, description, created_at FROM frameworks WHERE tenant_id = $1 ${soft} ORDER BY created_at DESC`,
+    `SELECT id, tenant_id, name, description, created_at FROM frameworks WHERE tenant_id = $1`,
     [tenantId]
   );
   return r.rows;
@@ -61,7 +59,7 @@ export async function get_audit_scopes(
 ) {
   const { tenantId, frameworkId } = getAuditScopesSchema.parse(params);
   const r = await db.query(
-    `SELECT id, tenant_id, framework_id, name, created_at FROM audit_scopes WHERE tenant_id = $1 AND framework_id = $2 ${soft} ORDER BY created_at DESC`,
+    `SELECT id, tenant_id, name, created_at FROM audit_scopes WHERE tenant_id = $1 AND framework_id = $2`,
     [tenantId, frameworkId]
   );
   return r.rows;
@@ -73,7 +71,7 @@ export async function get_risks(
 ) {
   const { tenantId, scopeId } = getRisksSchema.parse(params);
   const r = await db.query(
-    `SELECT id, tenant_id, audit_scope_id, name, description, created_at FROM risks WHERE tenant_id = $1 AND audit_scope_id = $2 ${soft} ORDER BY created_at DESC`,
+    `SELECT id, tenant_id, scope_id, title, assertion, rmm_level FROM risks WHERE tenant_id = $1 AND scope_id = $2`,
     [tenantId, scopeId]
   );
   return r.rows;
@@ -85,7 +83,7 @@ export async function get_controls(
 ) {
   const { tenantId, riskId } = getControlsSchema.parse(params);
   const r = await db.query(
-    `SELECT id, tenant_id, risk_id, name, description, created_at FROM controls WHERE tenant_id = $1 AND risk_id = $2 ${soft} ORDER BY created_at DESC`,
+    `SELECT id, tenant_id, risk_id, name, description, created_at FROM controls WHERE tenant_id = $1 AND risk_id = $2`,
     [tenantId, riskId]
   );
   return r.rows;
@@ -97,7 +95,7 @@ export async function get_tests(
 ) {
   const { tenantId, controlId } = getTestsSchema.parse(params);
   const r = await db.query(
-    `SELECT id, tenant_id, control_id, name, description, created_at FROM tests WHERE tenant_id = $1 AND control_id = $2 ${soft} ORDER BY created_at DESC`,
+    `SELECT id, tenant_id, control_id, name, description, created_at FROM tests WHERE tenant_id = $1 AND control_id = $2`,
     [tenantId, controlId]
   );
   return r.rows;
@@ -109,7 +107,7 @@ export async function get_evidence(
 ) {
   const { tenantId } = getEvidenceSchema.parse(params);
   const r = await db.query(
-    `SELECT id, tenant_id, test_id, sha256, created_at FROM evidence WHERE tenant_id = $1 ${soft} ORDER BY created_at DESC`,
+    `SELECT id, tenant_id, test_id, sha256, created_at FROM evidence WHERE tenant_id = $1`,
     [tenantId]
   );
   return r.rows;
