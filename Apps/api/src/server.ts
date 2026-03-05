@@ -33,6 +33,18 @@ const frameworksHandler = async (request: any, reply: any) => {
 server.get('/framework', { preHandler: setTenantContext }, frameworksHandler);
 server.get('/frameworks', { preHandler: setTenantContext }, frameworksHandler);
 
+// Tenants endpoint (requires tenant header)
+const tenantsHandler = async (request: any, reply: any) => {
+  try {
+    const { data, error } = await supabase.from('tenants').select('id, name');
+    if (error) return reply.status(500).send({ error: error.message });
+    return data ?? [];
+  } catch (err) {
+    return reply.status(500).send({ error: err instanceof Error ? err.message : 'Unknown error' });
+  }
+};
+server.get('/tenants', { preHandler: setTenantContext }, tenantsHandler);
+
 // Start server
 const port = Number(process.env.PORT) || 3001;
 async function start() {
