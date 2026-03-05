@@ -8,8 +8,10 @@ import { registerEvidenceRoutes } from './evidence';
 import { registerConclusionsRoutes } from './conclusions';
 import { registerAiRoutes } from './ai';
 import { registerMcpRoutes } from './mcp';
+import { registerDashboardRoutes } from './dashboard';
 
 export async function registerRoutes(app: FastifyInstance) {
+  await registerDashboardRoutes(app);
   await registerFrameworksRoutes(app);
   await registerAuditScopesRoutes(app);
   await registerRisksRoutes(app);

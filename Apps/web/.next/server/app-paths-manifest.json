@@ -1,3 +1,3 @@
 {
-  "/preparer/page": "app/preparer/page.js"
+  "/dashboard/page": "app/dashboard/page.js"
 }
