@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { fetchResource, createResource } from '@/lib/api';
+import { Fragment, useState, useEffect, useCallback } from 'react';
+import { fetchResource, createResource, reviewEvidence, type ReviewEvidenceResult } from '@/lib/api';
 
 interface Test {
   id: string;
   tenant_id: string;
   control_id: string;
-  name: string;
-  description: string | null;
+  name?: string;
+  description?: string | null;
+  procedure_steps?: unknown;
+  test_type?: string | null;
 }
 
 interface Control {
@@ -26,6 +28,9 @@ export default function TestsPage() {
   const [description, setDescription] = useState('');
   const [controlId, setControlId] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [reviewingTestId, setReviewingTestId] = useState<string | null>(null);
+  const [reviewResults, setReviewResults] = useState<Record<string, ReviewEvidenceResult>>({});
+  const [expandedReviewId, setExpandedReviewId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +72,20 @@ export default function TestsPage() {
       setError(err instanceof Error ? err.message : 'Failed to create');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleReviewEvidence(testId: string) {
+    setReviewingTestId(testId);
+    setError(null);
+    try {
+      const result = await reviewEvidence(testId);
+      setReviewResults((prev) => ({ ...prev, [testId]: result }));
+      setExpandedReviewId(testId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to review evidence');
+    } finally {
+      setReviewingTestId(null);
     }
   }
 
@@ -150,21 +169,81 @@ export default function TestsPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Name</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Description</th>
+                <th className="px-6 py-3 text-right text-sm font-medium text-slate-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
                     No tests yet
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-6 py-4 text-slate-800">{item.name}</td>
-                    <td className="px-6 py-4 text-slate-600">{item.description ?? '—'}</td>
-                  </tr>
+                  <Fragment key={item.id}>
+                    <tr>
+                      <td className="px-6 py-4 text-slate-800">{item.name ?? '—'}</td>
+                      <td className="px-6 py-4 text-slate-600">{item.description ?? '—'}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleReviewEvidence(item.id)}
+                          disabled={!!reviewingTestId}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {reviewingTestId === item.id ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              Reviewing…
+                            </>
+                          ) : (
+                            'Review Evidence'
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedReviewId === item.id && reviewResults[item.id] && (
+                      <tr key={`${item.id}-review`}>
+                        <td colSpan={3} className="bg-slate-50 p-0">
+                          <div className="px-6 py-4">
+                            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">
+                                  {reviewResults[item.id].sufficient ? '✅' : '❌'}
+                                </span>
+                                <span className="font-medium text-slate-800">
+                                  Evidence {reviewResults[item.id].sufficient ? 'Sufficient' : 'Insufficient'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedReviewId(null)}
+                                  className="ml-auto text-slate-500 hover:text-slate-700"
+                                  aria-label="Close"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <p className="text-slate-600 text-sm mb-3">{reviewResults[item.id]?.reasoning ?? ''}</p>
+                              {Array.isArray(reviewResults[item.id]?.recommendations) && reviewResults[item.id].recommendations.length > 0 && (
+                                <div>
+                                  <span className="text-sm font-medium text-slate-700">Recommendations:</span>
+                                  <ul className="mt-1 list-disc list-inside text-sm text-slate-600 space-y-0.5">
+                                    {reviewResults[item.id].recommendations.map((rec, i) => (
+                                      <li key={i}>{rec}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))
               )}
             </tbody>

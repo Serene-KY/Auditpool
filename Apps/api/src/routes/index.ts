@@ -7,6 +7,7 @@ import { registerTestsRoutes } from './tests';
 import { registerEvidenceRoutes } from './evidence';
 import { registerConclusionsRoutes } from './conclusions';
 import { registerAiRoutes } from './ai';
+import { registerMcpRoutes } from './mcp';
 
 export async function registerRoutes(app: FastifyInstance) {
   await registerFrameworksRoutes(app);
@@ -17,4 +18,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await registerEvidenceRoutes(app);
   await registerConclusionsRoutes(app);
   await registerAiRoutes(app);
+  await registerMcpRoutes(app);
 }
