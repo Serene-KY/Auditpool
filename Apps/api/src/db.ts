@@ -1,14 +1,11 @@
 import 'dotenv/config';
-import { Pool } from 'pg';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const url = process.env.SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 
-export async function query<T = unknown>(
-  text: string,
-  params?: unknown[]
-): Promise<T[]> {
-  const result = await pool.query(text, params);
-  return result.rows as T[];
+if (!url || !key) {
+  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY/SUPABASE_ANON_KEY in .env');
 }
+
+export const supabase: SupabaseClient = createClient(url, key);
