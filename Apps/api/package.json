@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "migrate": "ts-node --transpile-only src/migrate.ts",
+    "seed": "ts-node --transpile-only src/seed.ts",
     "dev": "pnpm run migrate && ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "test": "echo \"No tests yet\" && exit 0",
@@ -11,6 +12,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@google/generative-ai": "^0.24.1",
     "dotenv": "^17.3.1",
     "fastify": "^5.7.4",
     "pg": "^8.19.0",
