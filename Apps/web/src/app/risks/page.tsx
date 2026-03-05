@@ -5,10 +5,11 @@ import { fetchResource, createResource } from '@/lib/api';
 
 interface Risk {
   id: string;
-  tenant_id: string;
-  audit_scope_id: string;
-  name: string;
-  description: string | null;
+  title: string;
+  assertion?: string | null;
+  rmm_level?: string | null;
+  scope_id: string;
+  created_at?: string;
 }
 
 interface AuditScope {
@@ -22,9 +23,10 @@ export default function RisksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [auditScopeId, setAuditScopeId] = useState('');
+  const [scopeId, setScopeId] = useState('');
+  const [title, setTitle] = useState('');
+  const [assertion, setAssertion] = useState('');
+  const [rmmLevel, setRmmLevel] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
@@ -37,7 +39,7 @@ export default function RisksPage() {
       ]);
       setItems(risks);
       setScopes(as);
-      if (!auditScopeId && as.length > 0) setAuditScopeId(as[0].id);
+      setScopeId((prev) => (prev || as[0]?.id) ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch');
       setItems([]);
@@ -55,12 +57,14 @@ export default function RisksPage() {
     setSubmitting(true);
     try {
       await createResource<{ id: string }>('risks', {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        audit_scope_id: auditScopeId,
+        scope_id: scopeId,
+        title: title.trim(),
+        assertion: assertion.trim() || undefined,
+        rmm_level: rmmLevel.trim() || undefined,
       });
-      setName('');
-      setDescription('');
+      setTitle('');
+      setAssertion('');
+      setRmmLevel('');
       setShowForm(false);
       await load();
     } catch (err) {
@@ -91,8 +95,8 @@ export default function RisksPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Audit Scope</label>
               <select
-                value={auditScopeId}
-                onChange={(e) => setAuditScopeId(e.target.value)}
+                value={scopeId}
+                onChange={(e) => setScopeId(e.target.value)}
                 required
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
               >
@@ -103,21 +107,30 @@ export default function RisksPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
               <input
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 required
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Assertion</label>
               <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                value={assertion}
+                onChange={(e) => setAssertion(e.target.value)}
                 rows={2}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">RMM Level</label>
+              <input
+                type="text"
+                value={rmmLevel}
+                onChange={(e) => setRmmLevel(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
               />
             </div>
@@ -148,22 +161,28 @@ export default function RisksPage() {
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Description</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Title</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Assertion</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">RMM Level</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Scope</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
                     No risks yet
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
-                    <td className="px-6 py-4 text-slate-800">{item.name}</td>
-                    <td className="px-6 py-4 text-slate-600">{item.description ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-800">{item.title}</td>
+                    <td className="px-6 py-4 text-slate-600">{item.assertion ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-600">{item.rmm_level ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {scopes.find((s) => s.id === item.scope_id)?.name ?? item.scope_id}
+                    </td>
                   </tr>
                 ))
               )}

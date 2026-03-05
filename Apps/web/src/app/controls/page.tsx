@@ -5,15 +5,16 @@ import { fetchResource, createResource } from '@/lib/api';
 
 interface Control {
   id: string;
-  tenant_id: string;
+  control_code: string;
+  frequency?: string | null;
+  control_type?: string | null;
   risk_id: string;
-  name: string;
-  description: string | null;
+  created_at?: string;
 }
 
 interface Risk {
   id: string;
-  name: string;
+  title: string;
 }
 
 export default function ControlsPage() {
@@ -22,8 +23,9 @@ export default function ControlsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [controlCode, setControlCode] = useState('');
+  const [frequency, setFrequency] = useState('');
+  const [controlType, setControlType] = useState('');
   const [riskId, setRiskId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,12 +57,14 @@ export default function ControlsPage() {
     setSubmitting(true);
     try {
       await createResource<{ id: string }>('controls', {
-        name: name.trim(),
-        description: description.trim() || undefined,
+        control_code: controlCode.trim(),
+        frequency: frequency.trim() || undefined,
+        control_type: controlType.trim() || undefined,
         risk_id: riskId,
       });
-      setName('');
-      setDescription('');
+      setControlCode('');
+      setFrequency('');
+      setControlType('');
       setShowForm(false);
       await load();
     } catch (err) {
@@ -95,7 +99,7 @@ export default function ControlsPage() {
               >
                 <option value="">Select risk</option>
                 {risks.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
+                  <option key={r.id} value={r.id}>{r.title}</option>
                 ))}
               </select>
             </div>
@@ -145,20 +149,26 @@ export default function ControlsPage() {
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Description</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Control Code</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Frequency</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Control Type</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Risk</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-6 py-8 text-center text-slate-500">No controls yet</td>
+                  <td colSpan={4} className="px-6 py-8 text-center text-slate-500">No controls yet</td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
-                    <td className="px-6 py-4 text-slate-800">{item.name}</td>
-                    <td className="px-6 py-4 text-slate-600">{item.description ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-800">{item.control_code}</td>
+                    <td className="px-6 py-4 text-slate-600">{item.frequency ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-600">{item.control_type ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {risks.find((r) => r.id === item.risk_id)?.title ?? item.risk_id}
+                    </td>
                   </tr>
                 ))
               )}

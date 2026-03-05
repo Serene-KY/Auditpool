@@ -5,10 +5,9 @@ import { fetchResource, createResource } from '@/lib/api';
 
 interface AuditScope {
   id: string;
-  tenant_id: string;
-  framework_id: string;
   name: string;
   created_at?: string;
+  framework_id: string;
 }
 
 interface Framework {
@@ -137,7 +136,7 @@ export default function AuditScopesPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Framework ID</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Framework</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -151,7 +150,9 @@ export default function AuditScopesPage() {
                 items.map((item) => (
                   <tr key={item.id}>
                     <td className="px-6 py-4 text-slate-800">{item.name}</td>
-                    <td className="px-6 py-4 text-slate-600 font-mono text-sm">{item.framework_id}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {frameworks.find((f) => f.id === item.framework_id)?.name ?? item.framework_id}
+                    </td>
                   </tr>
                 ))
               )}

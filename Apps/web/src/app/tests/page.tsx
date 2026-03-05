@@ -5,17 +5,22 @@ import { fetchResource, createResource, reviewEvidence, type ReviewEvidenceResul
 
 interface Test {
   id: string;
-  tenant_id: string;
-  control_id: string;
-  name?: string;
-  description?: string | null;
-  procedure_steps?: unknown;
   test_type?: string | null;
+  procedure_steps?: unknown;
+  sample_size?: number | null;
+  control_id: string;
+  created_at?: string;
 }
 
 interface Control {
   id: string;
-  name: string;
+  control_code: string;
+}
+
+function formatProcedureSteps(steps: unknown): string {
+  if (Array.isArray(steps)) return steps.map(String).join(', ');
+  if (typeof steps === 'string') return steps;
+  return steps != null ? String(steps) : '—';
 }
 
 export default function TestsPage() {
@@ -24,8 +29,9 @@ export default function TestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [testType, setTestType] = useState('manual');
+  const [procedureSteps, setProcedureSteps] = useState('');
+  const [sampleSize, setSampleSize] = useState(10);
   const [controlId, setControlId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reviewingTestId, setReviewingTestId] = useState<string | null>(null);
@@ -59,13 +65,16 @@ export default function TestsPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      const steps = procedureSteps.trim()
+        ? procedureSteps.split(',').map((s) => s.trim()).filter(Boolean)
+        : [];
       await createResource<{ id: string }>('tests', {
-        name: name.trim(),
-        description: description.trim() || undefined,
+        test_type: testType,
+        procedure_steps: steps,
+        sample_size: sampleSize,
         control_id: controlId,
       });
-      setName('');
-      setDescription('');
+      setProcedureSteps('');
       setShowForm(false);
       await load();
     } catch (err) {
@@ -117,26 +126,36 @@ export default function TestsPage() {
               >
                 <option value="">Select control</option>
                 {controls.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{c.control_code}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Test Type</label>
               <input
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+                value={testType}
+                onChange={(e) => setTestType(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Procedure Steps (comma-separated)</label>
               <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                value={procedureSteps}
+                onChange={(e) => setProcedureSteps(e.target.value)}
                 rows={2}
+                placeholder="Step 1, Step 2, Step 3"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Sample Size</label>
+              <input
+                type="number"
+                value={sampleSize}
+                onChange={(e) => setSampleSize(Number(e.target.value) || 0)}
+                min={1}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
               />
             </div>
@@ -167,15 +186,17 @@ export default function TestsPage() {
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Name</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Description</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Test Type</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Sample Size</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Procedure Steps</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Control</th>
                 <th className="px-6 py-3 text-right text-sm font-medium text-slate-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                     No tests yet
                   </td>
                 </tr>
@@ -183,8 +204,14 @@ export default function TestsPage() {
                 items.map((item) => (
                   <Fragment key={item.id}>
                     <tr>
-                      <td className="px-6 py-4 text-slate-800">{item.name ?? '—'}</td>
-                      <td className="px-6 py-4 text-slate-600">{item.description ?? '—'}</td>
+                      <td className="px-6 py-4 text-slate-800">{item.test_type ?? '—'}</td>
+                      <td className="px-6 py-4 text-slate-600 tabular-nums">{item.sample_size ?? '—'}</td>
+                      <td className="px-6 py-4 text-slate-600 max-w-xs truncate" title={formatProcedureSteps(item.procedure_steps)}>
+                        {formatProcedureSteps(item.procedure_steps)}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {controls.find((c) => c.id === item.control_id)?.control_code ?? item.control_id}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <button
                           type="button"
@@ -208,7 +235,7 @@ export default function TestsPage() {
                     </tr>
                     {expandedReviewId === item.id && reviewResults[item.id] && (
                       <tr key={`${item.id}-review`}>
-                        <td colSpan={3} className="bg-slate-50 p-0">
+                        <td colSpan={5} className="bg-slate-50 p-0">
                           <div className="px-6 py-4">
                             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
                               <div className="flex items-center gap-2 mb-2">

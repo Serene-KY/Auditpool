@@ -3,7 +3,8 @@ import { z } from 'zod';
 
 const postBodySchema = z.object({
   test_id: z.string().uuid(),
-  conclusion: z.string().min(1),
+  overall_result: z.string().min(1),
+  summary: z.string().min(1),
 });
 
 export async function registerConclusionsRoutes(app: FastifyInstance) {
@@ -13,7 +14,7 @@ export async function registerConclusionsRoutes(app: FastifyInstance) {
     }
     try {
       const { rows } = await request.db.query(
-        `SELECT * FROM conclusions WHERE tenant_id = $1`,
+        `SELECT id, tenant_id, test_id, overall_result, summary, created_at FROM conclusions WHERE tenant_id = $1`,
         [request.tenantId]
       );
       return reply.send(rows);
@@ -34,11 +35,11 @@ export async function registerConclusionsRoutes(app: FastifyInstance) {
         details: parsed.error.flatten(),
       });
     }
-    const { test_id, conclusion } = parsed.data;
+    const { test_id, overall_result, summary } = parsed.data;
     try {
       const { rows } = await request.db.query(
-        `INSERT INTO conclusions (tenant_id, test_id, conclusion) VALUES ($1, $2, $3) RETURNING id`,
-        [request.tenantId, test_id, conclusion]
+        `INSERT INTO conclusions (tenant_id, test_id, overall_result, summary) VALUES ($1, $2, $3, $4) RETURNING id`,
+        [request.tenantId, test_id, overall_result, summary]
       );
       return reply.status(201).send(rows[0]);
     } catch (err: unknown) {

@@ -5,23 +5,19 @@ import { fetchResource, createResource } from '@/lib/api';
 
 interface Evidence {
   id: string;
-  tenant_id: string;
-  test_id: string;
+  file_name?: string | null;
+  file_path?: string | null;
   sha256: string;
-}
-
-interface Test {
-  id: string;
-  name: string;
+  created_at?: string;
 }
 
 export default function EvidencePage() {
   const [items, setItems] = useState<Evidence[]>([]);
-  const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [testId, setTestId] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [filePath, setFilePath] = useState('');
   const [sha256, setSha256] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -29,13 +25,8 @@ export default function EvidencePage() {
     setLoading(true);
     setError(null);
     try {
-      const [evidence, t] = await Promise.all([
-        fetchResource<Evidence>('evidence'),
-        fetchResource<Test>('tests'),
-      ]);
+      const evidence = await fetchResource<Evidence>('evidence');
       setItems(evidence);
-      setTests(t);
-      if (!testId && t.length > 0) setTestId(t[0].id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch');
       setItems([]);
@@ -53,9 +44,12 @@ export default function EvidencePage() {
     setSubmitting(true);
     try {
       await createResource<{ id: string }>('evidence', {
-        test_id: testId,
+        file_name: fileName.trim(),
+        file_path: filePath.trim() || undefined,
         sha256: sha256.trim(),
       });
+      setFileName('');
+      setFilePath('');
       setSha256('');
       setShowForm(false);
       await load();
@@ -85,18 +79,25 @@ export default function EvidencePage() {
         >
           <div className="grid gap-4 max-w-md">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Test</label>
-              <select
-                value={testId}
-                onChange={(e) => setTestId(e.target.value)}
+              <label className="block text-sm font-medium text-slate-700 mb-1">File Name</label>
+              <input
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
                 required
+                placeholder="e.g. mfa-screenshot.png"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
-              >
-                <option value="">Select test</option>
-                {tests.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">File Path</label>
+              <input
+                type="text"
+                value={filePath}
+                onChange={(e) => setFilePath(e.target.value)}
+                placeholder="e.g. /evidence/mfa"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">SHA256</label>
@@ -136,22 +137,24 @@ export default function EvidencePage() {
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">Test ID</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">File Name</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">File Path</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-slate-700">SHA256</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
                     No evidence yet
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
-                    <td className="px-6 py-4 text-slate-600 font-mono text-sm">{item.test_id}</td>
-                    <td className="px-6 py-4 text-slate-800 font-mono text-sm">{item.sha256}</td>
+                    <td className="px-6 py-4 text-slate-800">{item.file_name ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-600 font-mono text-sm">{item.file_path ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-600 font-mono text-sm">{item.sha256}</td>
                   </tr>
                 ))
               )}

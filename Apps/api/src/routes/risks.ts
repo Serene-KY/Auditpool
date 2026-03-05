@@ -2,9 +2,10 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
 const postBodySchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  audit_scope_id: z.string().uuid(),
+  scope_id: z.string().uuid(),
+  title: z.string().min(1),
+  assertion: z.string().optional(),
+  rmm_level: z.string().optional(),
 });
 
 export async function registerRisksRoutes(app: FastifyInstance) {
@@ -14,7 +15,7 @@ export async function registerRisksRoutes(app: FastifyInstance) {
     }
     try {
       const { rows } = await request.db.query(
-        `SELECT * FROM risks WHERE tenant_id = $1`,
+        `SELECT id, tenant_id, scope_id, title, assertion, rmm_level, created_at FROM risks WHERE tenant_id = $1`,
         [request.tenantId]
       );
       return reply.send(rows);
@@ -35,18 +36,18 @@ export async function registerRisksRoutes(app: FastifyInstance) {
         details: parsed.error.flatten(),
       });
     }
-    const { name, description, audit_scope_id } = parsed.data;
+    const { scope_id, title, assertion, rmm_level } = parsed.data;
     try {
       const { rows } = await request.db.query(
-        `INSERT INTO risks (tenant_id, audit_scope_id, name, description) VALUES ($1, $2, $3, $4) RETURNING id`,
-        [request.tenantId, audit_scope_id, name, description ?? null]
+        `INSERT INTO risks (tenant_id, scope_id, title, assertion, rmm_level) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [request.tenantId, scope_id, title, assertion ?? null, rmm_level ?? null]
       );
       return reply.status(201).send(rows[0]);
     } catch (err: unknown) {
       request.log.error(err);
       const pgErr = err as { code?: string };
       if (pgErr.code === '23503') {
-        return reply.status(400).send({ error: 'Audit scope not found' });
+        return reply.status(400).send({ error: 'Scope not found' });
       }
       return reply.status(500).send({ error: 'Failed to create risk' });
     }

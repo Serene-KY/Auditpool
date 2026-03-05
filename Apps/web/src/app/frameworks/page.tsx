@@ -5,7 +5,6 @@ import { fetchResource, createResource } from '@/lib/api';
 
 interface Framework {
   id: string;
-  tenant_id: string;
   name: string;
   description: string | null;
   created_at?: string;
