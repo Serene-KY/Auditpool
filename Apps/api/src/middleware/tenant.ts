@@ -49,7 +49,7 @@ export async function tenantMiddleware(
   } catch (err) {
     client.release();
     request.log.error(err, 'Failed to set tenant context');
-    return reply.status(500).send({ error: 'Failed to set tenant context' });
+    return reply.status(503).send({ error: 'Database error' });
   }
 
   request.tenantId = tenantId;
@@ -57,8 +57,9 @@ export async function tenantMiddleware(
 
   reply.raw.on('finish', () => {
     if (request.db) {
-      request.db.release();
+      const db = request.db;
       (request as FastifyRequest & { db?: PoolClient }).db = undefined;
+      db.release();
     }
   });
 }

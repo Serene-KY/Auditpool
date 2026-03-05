@@ -16,15 +16,15 @@ export async function registerFrameworksRoutes(app: FastifyInstance) {
       }
       try {
         const { rows } = await request.db.query(
-          `SELECT id, tenant_id, name, description, created_at, created_by, updated_at, updated_by, version
-           FROM frameworks WHERE tenant_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
-           ORDER BY created_at DESC`,
+          `SELECT id, tenant_id, name, description, created_at FROM frameworks WHERE tenant_id = $1 ORDER BY created_at DESC`,
           [request.tenantId]
         );
         return reply.send(rows);
       } catch (err) {
+        console.error('frameworks error:', err);
         request.log.error(err);
-        return reply.status(500).send({ error: 'Failed to fetch frameworks' });
+        const message = err instanceof Error ? err.message : 'Failed to fetch frameworks';
+        return reply.status(500).send({ error: message });
       }
     }
   );
@@ -46,9 +46,7 @@ export async function registerFrameworksRoutes(app: FastifyInstance) {
       const { name, description } = parsed.data;
       try {
         const { rows } = await request.db.query(
-          `INSERT INTO frameworks (tenant_id, name, description)
-           VALUES ($1, $2, $3)
-           RETURNING id, tenant_id, name, description, created_at, created_by, updated_at, updated_by, version`,
+          `INSERT INTO frameworks (id, tenant_id, name, description, created_at) VALUES (gen_random_uuid(), $1, $2, $3, NOW()) RETURNING id`,
           [request.tenantId, name, description ?? null]
         );
         return reply.status(201).send(rows[0]);

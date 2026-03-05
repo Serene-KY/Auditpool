@@ -14,9 +14,7 @@ export async function registerTestsRoutes(app: FastifyInstance) {
     }
     try {
       const { rows } = await request.db.query(
-        `SELECT id, tenant_id, control_id, name, description, created_at, created_by, updated_at, updated_by, version
-         FROM tests WHERE tenant_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
-         ORDER BY created_at DESC`,
+        `SELECT * FROM tests WHERE tenant_id = $1`,
         [request.tenantId]
       );
       return reply.send(rows);
@@ -40,9 +38,7 @@ export async function registerTestsRoutes(app: FastifyInstance) {
     const { name, description, control_id } = parsed.data;
     try {
       const { rows } = await request.db.query(
-        `INSERT INTO tests (tenant_id, control_id, name, description)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, tenant_id, control_id, name, description, created_at, created_by, updated_at, updated_by, version`,
+        `INSERT INTO tests (tenant_id, control_id, name, description) VALUES ($1, $2, $3, $4) RETURNING id`,
         [request.tenantId, control_id, name, description ?? null]
       );
       return reply.status(201).send(rows[0]);

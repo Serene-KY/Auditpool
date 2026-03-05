@@ -13,9 +13,7 @@ export async function registerEvidenceRoutes(app: FastifyInstance) {
     }
     try {
       const { rows } = await request.db.query(
-        `SELECT id, tenant_id, test_id, sha256, created_at, created_by, updated_at, updated_by, version
-         FROM evidence WHERE tenant_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
-         ORDER BY created_at DESC`,
+        `SELECT * FROM evidence WHERE tenant_id = $1`,
         [request.tenantId]
       );
       return reply.send(rows);
@@ -39,9 +37,7 @@ export async function registerEvidenceRoutes(app: FastifyInstance) {
     const { test_id, sha256 } = parsed.data;
     try {
       const { rows } = await request.db.query(
-        `INSERT INTO evidence (tenant_id, test_id, sha256)
-         VALUES ($1, $2, $3)
-         RETURNING id, tenant_id, test_id, sha256, created_at, created_by, updated_at, updated_by, version`,
+        `INSERT INTO evidence (tenant_id, test_id, sha256) VALUES ($1, $2, $3) RETURNING id`,
         [request.tenantId, test_id, sha256]
       );
       return reply.status(201).send(rows[0]);

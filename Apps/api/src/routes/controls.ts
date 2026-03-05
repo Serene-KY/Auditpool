@@ -14,9 +14,7 @@ export async function registerControlsRoutes(app: FastifyInstance) {
     }
     try {
       const { rows } = await request.db.query(
-        `SELECT id, tenant_id, risk_id, name, description, created_at, created_by, updated_at, updated_by, version
-         FROM controls WHERE tenant_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
-         ORDER BY created_at DESC`,
+        `SELECT * FROM controls WHERE tenant_id = $1`,
         [request.tenantId]
       );
       return reply.send(rows);
@@ -40,9 +38,7 @@ export async function registerControlsRoutes(app: FastifyInstance) {
     const { name, description, risk_id } = parsed.data;
     try {
       const { rows } = await request.db.query(
-        `INSERT INTO controls (tenant_id, risk_id, name, description)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, tenant_id, risk_id, name, description, created_at, created_by, updated_at, updated_by, version`,
+        `INSERT INTO controls (tenant_id, risk_id, name, description) VALUES ($1, $2, $3, $4) RETURNING id`,
         [request.tenantId, risk_id, name, description ?? null]
       );
       return reply.status(201).send(rows[0]);

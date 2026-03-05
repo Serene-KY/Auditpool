@@ -16,9 +16,7 @@ export async function registerAuditScopesRoutes(app: FastifyInstance) {
       }
       try {
         const { rows } = await request.db.query(
-          `SELECT id, tenant_id, framework_id, name, created_at, created_by, updated_at, updated_by, version
-           FROM audit_scopes WHERE tenant_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
-           ORDER BY created_at DESC`,
+          `SELECT * FROM audit_scopes WHERE tenant_id = $1`,
           [request.tenantId]
         );
         return reply.send(rows);
@@ -46,9 +44,7 @@ export async function registerAuditScopesRoutes(app: FastifyInstance) {
       const { name, framework_id } = parsed.data;
       try {
         const { rows } = await request.db.query(
-          `INSERT INTO audit_scopes (tenant_id, framework_id, name)
-           VALUES ($1, $2, $3)
-           RETURNING id, tenant_id, framework_id, name, created_at, created_by, updated_at, updated_by, version`,
+          `INSERT INTO audit_scopes (tenant_id, framework_id, name) VALUES ($1, $2, $3) RETURNING id`,
           [request.tenantId, framework_id, name]
         );
         return reply.status(201).send(rows[0]);
