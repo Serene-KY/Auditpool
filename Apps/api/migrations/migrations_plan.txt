@@ -1,0 +1,19 @@
+0001_extensions.sql - pgcrypto extension
+0002_tenants.sql - tenants table + RLS
+0003_users_roles.sql - users, roles, user_roles
+0004_engagements.sql - engagements + related tables
+0005_controls_evidence.sql - controls, evidence, evidence_links + indexes
+0006_audit_ai_logs.sql - audit_logs, ai_logs + indexes
+0007_set_tenant_context.sql - set_tenant_context function
+0008_foreign_keys.sql → add FK constraints between engagement-scoped tables
+
+
+0003_users_roles.sql → users, roles, user_roles
+0004_engagements.sql → engagements, processes, systems, risks, controls, tests, issues, conclusions
+0005_controls_evidence.sql → evidence, evidence_links + indexes
+0007_set_tenant_context.sql → set_tenant_context function
+0008_foreign_keys.sql → add FK constraints between engagement-scoped tables
+
+0001,0002, 0006 -- Not present in migration folder --> Already applied in Supabase
+
+
