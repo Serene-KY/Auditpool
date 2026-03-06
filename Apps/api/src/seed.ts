@@ -354,6 +354,69 @@ async function seed() {
 
     console.log('[seed] TechCorp BV data complete');
 
+    // --- FinanceSecure NV tenant ---
+    const financeSecureRes = await client.query(
+      "SELECT id FROM tenants WHERE name = 'FinanceSecure NV'"
+    );
+    let financeSecureTenantId: string;
+    if (financeSecureRes.rows.length > 0) {
+      financeSecureTenantId = financeSecureRes.rows[0].id;
+      console.log('[seed] FinanceSecure NV tenant already exists:', { id: financeSecureTenantId });
+    } else {
+      const ins = await client.query(
+        "INSERT INTO tenants (id, name) VALUES (gen_random_uuid(), 'FinanceSecure NV') RETURNING id"
+      );
+      financeSecureTenantId = ins.rows[0].id;
+      console.log('[seed] inserted FinanceSecure NV tenant:', { id: financeSecureTenantId });
+    }
+
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [financeSecureTenantId]);
+
+    // Frameworks (2)
+    const soxId = await upsertFramework(client, financeSecureTenantId, 'SOX', 'Sarbanes-Oxley Financial Controls');
+    const pciId = await upsertFramework(client, financeSecureTenantId, 'PCI DSS', 'Payment Card Industry Security');
+
+    // Audit Scopes (4)
+    const finReportingScopeId = await upsertAuditScope(client, financeSecureTenantId, soxId, 'Financial Reporting');
+    const itGenControlsScopeId = await upsertAuditScope(client, financeSecureTenantId, soxId, 'IT General Controls');
+    const cardDataScopeId = await upsertAuditScope(client, financeSecureTenantId, pciId, 'Card Data Environment');
+    const accessMgmtScopeId = await upsertAuditScope(client, financeSecureTenantId, pciId, 'Access Management');
+
+    // Risks (8, 2 per scope) - 3 without controls: Segregation of Duties, Unencrypted Transmission, Dormant Accounts
+    const riskFin1Id = await upsertRisk(client, financeSecureTenantId, finReportingScopeId, 'Financial Fraud');
+    const riskFin2Id = await upsertRisk(client, financeSecureTenantId, finReportingScopeId, 'Misstatement');
+    const riskIt1Id = await upsertRisk(client, financeSecureTenantId, itGenControlsScopeId, 'Change Management Failure');
+    const riskIt2Id = await upsertRisk(client, financeSecureTenantId, itGenControlsScopeId, 'Segregation of Duties Violation');
+    const riskCard1Id = await upsertRisk(client, financeSecureTenantId, cardDataScopeId, 'Cardholder Data Breach');
+    const riskCard2Id = await upsertRisk(client, financeSecureTenantId, cardDataScopeId, 'Unencrypted Transmission');
+    const riskAcc1Id = await upsertRisk(client, financeSecureTenantId, accessMgmtScopeId, 'Excessive Privileges');
+    const riskAcc2Id = await upsertRisk(client, financeSecureTenantId, accessMgmtScopeId, 'Dormant Accounts');
+
+    // Controls (5) - leave Segregation of Duties, Unencrypted Transmission, Dormant Accounts without controls
+    const ctrlF1Id = await upsertControl(client, financeSecureTenantId, riskFin1Id, 'CTRL-F001', 'monthly', 'detective');
+    const ctrlF2Id = await upsertControl(client, financeSecureTenantId, riskFin2Id, 'CTRL-F002', 'daily', 'preventive');
+    const ctrlF3Id = await upsertControl(client, financeSecureTenantId, riskIt1Id, 'CTRL-F003', 'monthly', 'preventive');
+    const ctrlF4Id = await upsertControl(client, financeSecureTenantId, riskCard1Id, 'CTRL-F004', 'continuous', 'preventive');
+    const ctrlF5Id = await upsertControl(client, financeSecureTenantId, riskAcc1Id, 'CTRL-F005', 'quarterly', 'detective');
+
+    // Tests (5, one per control)
+    const testF1Id = await upsertTest(client, financeSecureTenantId, ctrlF1Id, ['Review financial close process', 'Verify management review sign-off', 'Check variance analysis documentation'], 15);
+    const testF2Id = await upsertTest(client, financeSecureTenantId, ctrlF2Id, ['Verify automated reconciliation runs', 'Test exception handling', 'Validate reconciliation timeliness'], 15);
+    const testF3Id = await upsertTest(client, financeSecureTenantId, ctrlF3Id, ['Review CAB meeting minutes', 'Verify change approval workflow', 'Check change documentation completeness'], 15);
+    const testF4Id = await upsertTest(client, financeSecureTenantId, ctrlF4Id, ['Verify encryption in transit (TLS)', 'Check key management procedures', 'Validate PCI encryption scope'], 15);
+    const testF5Id = await upsertTest(client, financeSecureTenantId, ctrlF5Id, ['Review privileged access list', 'Verify quarterly attestation', 'Check access recertification process'], 15);
+
+    // Evidence (3) - sox001, pci002, rec003
+    await upsertEvidence(client, financeSecureTenantId, testF1Id, 'sox001');
+    await upsertEvidence(client, financeSecureTenantId, testF4Id, 'pci002');
+    await upsertEvidence(client, financeSecureTenantId, testF2Id, 'rec003');
+
+    // Conclusions (2) - Test 1 pass, Test 2 fail; leave 3 without
+    await upsertConclusion(client, financeSecureTenantId, testF1Id, 'Financial review process is operating effectively', 'pass');
+    await upsertConclusion(client, financeSecureTenantId, testF2Id, 'Reconciliation gaps found in Q3 reporting period', 'fail');
+
+    console.log('[seed] FinanceSecure NV data complete');
+
     await client.query('COMMIT');
     console.log('[seed] done');
   } catch (err) {

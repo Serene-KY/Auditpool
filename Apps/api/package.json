@@ -5,6 +5,7 @@
   "scripts": {
     "migrate": "ts-node --transpile-only src/migrate.ts",
     "seed": "ts-node --transpile-only src/seed.ts",
+    "seed:frameworks": "ts-node --transpile-only src/seed-frameworks.ts",
     "dev": "pnpm run migrate && ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "test": "vitest run",
