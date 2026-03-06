@@ -11,10 +11,12 @@ import { registerAiRoutes } from './ai';
 import { registerMcpRoutes } from './mcp';
 import { registerDashboardRoutes } from './dashboard';
 import { registerWorkflowRoutes } from '../workflows/workflow-routes';
+import { registerLibraryRoutes } from './library';
 
 export async function registerRoutes(app: FastifyInstance) {
   await registerDashboardRoutes(app);
   await registerTenantsRoutes(app);
+  await registerLibraryRoutes(app);
   await registerWorkflowRoutes(app);
   await registerFrameworksRoutes(app);
   await registerAuditScopesRoutes(app);

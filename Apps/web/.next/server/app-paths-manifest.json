@@ -1,4 +1,7 @@
 {
+  "/audit-scopes/page": "app/audit-scopes/page.js",
+  "/controls/page": "app/controls/page.js",
   "/frameworks/page": "app/frameworks/page.js",
+  "/library/page": "app/library/page.js",
   "/dashboard/page": "app/dashboard/page.js"
 }

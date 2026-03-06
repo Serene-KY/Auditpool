@@ -172,6 +172,37 @@ export async function fetchDashboardStats(tenantId: string): Promise<DashboardSt
   }
 }
 
+export async function fetchLibraryFrameworks(): Promise<Framework[]> {
+  const url = `${API_URL}/library/frameworks`;
+  try {
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    return res.json();
+  } catch (err) {
+    throw wrapFetchError(err, url);
+  }
+}
+
+export async function importFrameworkFromLibrary(
+  frameworkId: string,
+  tenantId: string
+): Promise<{ imported: boolean; frameworkId: string }> {
+  const url = `${API_URL}/library/frameworks/${frameworkId}/import`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: headersWithTenant(tenantId),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `API error: ${res.status}`);
+    }
+    return res.json();
+  } catch (err) {
+    throw wrapFetchError(err, url);
+  }
+}
+
 export async function reviewEvidence(testId: string): Promise<ReviewEvidenceResult> {
   const url = `${API_URL}/ai/review-evidence`;
   try {
