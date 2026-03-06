@@ -1,25 +1,20 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { reviewEvidence, getAvailableModels } from '../ai/reviewer';
+import { reviewEvidence } from '../ai/reviewer';
 
 const postBodySchema = z.object({
   test_id: z.string().uuid(),
 });
 
+const AI_MODEL = 'llama-3.3-70b-versatile';
+
 export async function registerAiRoutes(app: FastifyInstance) {
   app.get('/ai/models', async (request: FastifyRequest, reply: FastifyReply) => {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return reply.status(500).send({ error: 'GEMINI_API_KEY is not set' });
+      return reply.status(500).send({ error: 'GROQ_API_KEY is not set' });
     }
-    try {
-      const models = await getAvailableModels(apiKey);
-      return reply.send({ models });
-    } catch (err) {
-      request.log.error(err);
-      const message = err instanceof Error ? err.message : 'Failed to list models';
-      return reply.status(500).send({ error: message });
-    }
+    return reply.send({ models: [{ name: AI_MODEL }] });
   });
 
   app.post(
@@ -54,7 +49,7 @@ export async function registerAiRoutes(app: FastifyInstance) {
             test_id,
             prompt,
             JSON.stringify(result),
-            'models/gemini-2.5-flash',
+            AI_MODEL,
             null,
             false,
           ]

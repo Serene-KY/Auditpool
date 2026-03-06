@@ -1,32 +1,29 @@
-import {
-  GoogleGenerativeAI,
-  SchemaType,
-  FunctionCallingMode,
-  type FunctionCall,
-  type Part,
-} from '@google/generative-ai';
+import Groq from 'groq-sdk';
+import type { ChatCompletionMessageParam } from 'groq-sdk/resources/chat/completions';
 import type { PoolClient } from 'pg';
 import { TOOL_DEFINITIONS, runTool } from './server';
 import type { ToolName } from './tools';
 
-const MODEL = 'models/gemini-2.5-flash';
+const MODEL = 'llama-3.3-70b-versatile';
 
-function toGeminiDeclarations() {
-  const declarations = TOOL_DEFINITIONS.map((t) => ({
-    name: t.name,
-    description: t.description,
-    parameters: {
-      type: SchemaType.OBJECT as const,
-      properties: Object.fromEntries(
-        Object.entries(t.parameters.properties).map(([k, v]) => [
-          k,
-          { type: SchemaType.STRING as const, description: v.description },
-        ])
-      ) as Record<string, { type: typeof SchemaType.STRING; description: string }>,
-      required: t.parameters.required,
+function toGroqTools() {
+  return TOOL_DEFINITIONS.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: {
+        type: 'object' as const,
+        properties: Object.fromEntries(
+          Object.entries(t.parameters.properties).map(([k, v]) => [
+            k,
+            { type: 'string' as const, description: v.description },
+          ])
+        ),
+        required: t.parameters.required,
+      },
     },
   }));
-  return [{ functionDeclarations: declarations }];
 }
 
 export interface ReviewResult {
@@ -40,65 +37,52 @@ export async function reviewerAgent(
   tenantId: string,
   testId: string
 ): Promise<ReviewResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    systemInstruction: `You are an ISA (Information Security Auditor) reviewing audit evidence.
+  const client = new Groq({ apiKey });
+  const tools = toGroqTools();
+
+  const systemContent = `You are an ISA (Information Security Auditor) reviewing audit evidence.
 Use the provided tools to fetch the test, its control, risk, audit scope, framework, and evidence.
 Assess if the evidence is sufficient to conclude the test. Always call the tools to gather context - do not guess.
-Respond with valid JSON only: {"sufficient": boolean, "reasoning": string, "recommendations": string[]}`,
-    tools: toGeminiDeclarations(),
-    toolConfig: {
-      functionCallingConfig: { mode: FunctionCallingMode.AUTO },
-    },
-  });
+Respond in English only. Respond with valid JSON only: {"sufficient": boolean, "reasoning": string, "recommendations": string[]}`;
 
-  const contents: Array<{ role: string; parts: Array<{ text?: string; functionCall?: { name: string; args: object }; functionResponse?: { name: string; response: object } }> }> = [
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemContent },
     {
       role: 'user',
-      parts: [
-        {
-          text: `Review the evidence for test id ${testId}. Use the tools to fetch the test, its control, risks, audit scope, framework, and all evidence. Then assess sufficiency and respond with JSON: {"sufficient": boolean, "reasoning": string, "recommendations": string[]}`,
-        },
-      ],
+      content: `Review the evidence for test id ${testId}. Use the tools to fetch the test, its control, risks, audit scope, framework, and all evidence. Then assess sufficiency and respond with JSON: {"sufficient": boolean, "reasoning": string, "recommendations": string[]}`,
     },
   ];
 
   let maxTurns = 10;
   while (maxTurns-- > 0) {
-    const result = await model.generateContent({
-      contents: contents as never,
+    const completion = await client.chat.completions.create({
+      model: MODEL,
+      messages,
+      tools,
+      tool_choice: 'auto',
     });
-    const response = result.response;
-    const candidates = response.candidates;
-    if (!candidates?.length) {
-      const text = response.text?.() ?? '';
+
+    const choice = completion.choices?.[0];
+    const msg = choice?.message;
+    if (!msg) {
+      const text = choice?.message?.content ?? '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           return JSON.parse(jsonMatch[0]) as ReviewResult;
         } catch {
-          return {
-            sufficient: false,
-            reasoning: 'Could not parse AI response.',
-            recommendations: ['Retry the review.'],
-          };
+          return { sufficient: false, reasoning: 'Could not parse AI response.', recommendations: ['Retry the review.'] };
         }
       }
       throw new Error('No response from model');
     }
 
-    const parts = candidates[0].content?.parts ?? [];
-    const functionCalls: FunctionCall[] = parts
-      .filter((p: Part): p is Part & { functionCall: FunctionCall } => 'functionCall' in p && !!p.functionCall)
-      .map((p) => p.functionCall);
-
-    if (functionCalls.length === 0) {
-      const textPart = parts.find((p: { text?: string }) => p.text);
-      const text = (textPart?.text ?? response.text?.() ?? '').trim();
+    const toolCalls = msg.tool_calls;
+    if (!toolCalls?.length) {
+      const text = (msg.content ?? '').trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
@@ -121,21 +105,36 @@ Respond with valid JSON only: {"sufficient": boolean, "reasoning": string, "reco
       };
     }
 
-    for (const fc of functionCalls) {
-      const args = { ...(fc.args as Record<string, unknown>), tenantId };
+    messages.push({
+      role: 'assistant',
+      content: msg.content ?? null,
+      tool_calls: toolCalls.map((tc) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '{}' },
+      })),
+    });
+
+    for (const tc of toolCalls) {
+      const name = tc.function?.name ?? '';
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(tc.function?.arguments ?? '{}') as Record<string, unknown>;
+      } catch {
+        /* ignore */
+      }
+      const fullArgs = { ...args, tenantId };
       let out: unknown;
       try {
-        out = await runTool(db, fc.name as ToolName, args);
+        out = await runTool(db, name as ToolName, fullArgs);
       } catch (err) {
         out = { error: err instanceof Error ? err.message : 'Tool failed' };
       }
-      contents.push({
-        role: 'model',
-        parts: [{ functionCall: fc }],
-      });
-      contents.push({
-        role: 'user',
-        parts: [{ functionResponse: { name: fc.name, response: { result: out } } }],
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify({ result: out }),
       });
     }
   }
@@ -152,46 +151,39 @@ export interface PreparerSuggestion {
   suggestedControls: Array<{ riskId: string; controlCode: string; description?: string }>;
 }
 
-export async function preparerAgent(
-  db: PoolClient,
-  tenantId: string
-): Promise<PreparerSuggestion> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+export async function preparerAgent(db: PoolClient, tenantId: string): Promise<PreparerSuggestion> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    systemInstruction: `You are an audit preparer. Use the provided tools to explore the tenant's audit structure:
+  const client = new Groq({ apiKey });
+  const tools = toGroqTools();
+
+  const systemContent = `You are an audit preparer. Use the provided tools to explore the tenant's audit structure:
 frameworks -> audit_scopes -> risks -> controls -> tests -> evidence.
 Identify gaps: risks that have no controls, or controls that have no tests.
-Suggest specific controls to add. Respond with JSON: {"summary": string, "suggestedControls": [{"riskId": string, "controlCode": string, "description": string}]}`,
-    tools: toGeminiDeclarations(),
-    toolConfig: {
-      functionCallingConfig: { mode: FunctionCallingMode.AUTO },
-    },
-  });
+Suggest specific controls to add. Respond in English only. Respond with JSON: {"summary": string, "suggestedControls": [{"riskId": string, "controlCode": string, "description": string}]}`;
 
-  const contents: Array<{ role: string; parts: Array<{ text?: string; functionCall?: { name: string; args: object }; functionResponse?: { name: string; response: object } }> }> = [
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemContent },
     {
       role: 'user',
-      parts: [
-        {
-          text: `Analyze the audit structure for this tenant. Use the tools to fetch frameworks, audit scopes, risks, controls, tests, and evidence. Identify risks without controls and controls without tests. Suggest missing controls. Respond with JSON: {"summary": string, "suggestedControls": [{"riskId": string, "controlCode": string, "description": string}]}`,
-        },
-      ],
+      content: `Analyze the audit structure for this tenant. Use the tools to fetch frameworks, audit scopes, risks, controls, tests, and evidence. Identify risks without controls and controls without tests. Suggest missing controls. Respond with JSON: {"summary": string, "suggestedControls": [{"riskId": string, "controlCode": string, "description": string}]}`,
     },
   ];
 
   let maxTurns = 12;
   while (maxTurns-- > 0) {
-    const result = await model.generateContent({
-      contents: contents as never,
+    const completion = await client.chat.completions.create({
+      model: MODEL,
+      messages,
+      tools,
+      tool_choice: 'auto',
     });
-    const response = result.response;
-    const candidates = response.candidates;
-    if (!candidates?.length) {
-      const text = response.text?.() ?? '';
+
+    const choice = completion.choices?.[0];
+    const msg = choice?.message;
+    if (!msg) {
+      const text = choice?.message?.content ?? '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
@@ -203,13 +195,9 @@ Suggest specific controls to add. Respond with JSON: {"summary": string, "sugges
       return { summary: 'No response from model.', suggestedControls: [] };
     }
 
-    const parts = candidates[0].content?.parts ?? [];
-    const functionCalls: FunctionCall[] = parts
-      .filter((p: Part): p is Part & { functionCall: FunctionCall } => 'functionCall' in p && !!p.functionCall)
-      .map((p) => p.functionCall);
-
-    if (functionCalls.length === 0) {
-      const text = response.text?.() ?? '';
+    const toolCalls = msg.tool_calls;
+    if (!toolCalls?.length) {
+      const text = (msg.content ?? '').trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
@@ -225,21 +213,36 @@ Suggest specific controls to add. Respond with JSON: {"summary": string, "sugges
       return { summary: text || 'No analysis.', suggestedControls: [] };
     }
 
-    for (const fc of functionCalls) {
-      const args = { ...(fc.args as Record<string, unknown>), tenantId };
+    messages.push({
+      role: 'assistant',
+      content: msg.content ?? null,
+      tool_calls: toolCalls.map((tc) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: { name: tc.function?.name ?? '', arguments: tc.function?.arguments ?? '{}' },
+      })),
+    });
+
+    for (const tc of toolCalls) {
+      const name = tc.function?.name ?? '';
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(tc.function?.arguments ?? '{}') as Record<string, unknown>;
+      } catch {
+        /* ignore */
+      }
+      const fullArgs = { ...args, tenantId };
       let out: unknown;
       try {
-        out = await runTool(db, fc.name as ToolName, args);
+        out = await runTool(db, name as ToolName, fullArgs);
       } catch (err) {
         out = { error: err instanceof Error ? err.message : 'Tool failed' };
       }
-      contents.push({
-        role: 'model',
-        parts: [{ functionCall: fc }],
-      });
-      contents.push({
-        role: 'user',
-        parts: [{ functionResponse: { name: fc.name, response: { result: out } } }],
+
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify({ result: out }),
       });
     }
   }

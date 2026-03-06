@@ -177,6 +177,37 @@ async function upsertConclusion(
   return id;
 }
 
+async function addGapData(
+  client: Client,
+  accessControlScopeId: string,
+  availabilityScopeId: string,
+  confidentialityScopeId: string
+): Promise<void> {
+  const gaps: Array<{ title: string; scopeId: string }> = [
+    { title: 'Weak Password Policy', scopeId: accessControlScopeId },
+    { title: 'Unpatched Systems', scopeId: accessControlScopeId },
+    { title: 'No Backup Verification', scopeId: availabilityScopeId },
+    { title: 'Third Party Access', scopeId: confidentialityScopeId },
+  ];
+
+  for (const { title, scopeId } of gaps) {
+    const existing = await client.query(
+      'SELECT id FROM risks WHERE tenant_id = $1 AND title = $2',
+      [TENANT_ID, title]
+    );
+    if (existing.rows.length > 0) {
+      console.log('[seed] gap risk already exists:', { id: existing.rows[0].id, title });
+      continue;
+    }
+    const ins = await client.query(
+      'INSERT INTO risks (tenant_id, scope_id, title, assertion, rmm_level) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [TENANT_ID, scopeId, title, null, null]
+    );
+    const id = ins.rows[0].id;
+    console.log('[seed] inserted gap risk:', { id, title, scopeId });
+  }
+}
+
 async function seed() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
@@ -301,6 +332,9 @@ async function seed() {
     // 7. Conclusions (2)
     await upsertConclusion(client, test1Id, 'MFA is enabled for all sampled users', 'pass');
     await upsertConclusion(client, test2Id, 'Role-based access is properly configured', 'pass');
+
+    // 8. Gap data (risks without controls)
+    await addGapData(client, accessControlScopeId, availabilityScopeId, confidentialityScopeId);
 
     await client.query('COMMIT');
     console.log('[seed] done');

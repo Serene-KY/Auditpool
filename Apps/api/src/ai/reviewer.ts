@@ -1,8 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 import type { PoolClient } from 'pg';
 import { REVIEW_SYSTEM_PROMPT } from './prompts';
 
-const MODEL = 'models/gemini-2.5-flash';
+const MODEL = 'llama-3.3-70b-versatile';
 
 export interface ReviewResult {
   sufficient: boolean;
@@ -68,20 +68,22 @@ ${evidence.length === 0 ? 'No evidence on file.' : evidence.map((e) => `- file: 
 
 Assess if this evidence is sufficient to conclude the test.`;
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not set');
+    throw new Error('GROQ_API_KEY is not set');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
+  const client = new Groq({ apiKey });
+  const chatCompletion = await client.chat.completions.create({
     model: MODEL,
-    systemInstruction: REVIEW_SYSTEM_PROMPT,
+    messages: [
+      { role: 'system', content: REVIEW_SYSTEM_PROMPT },
+      { role: 'user', content: userContent },
+    ],
   });
 
-  const result = await model.generateContent(userContent);
-  const response = result.response;
-  const text = response.text() ?? '';
+  const choice = chatCompletion.choices?.[0];
+  const text = (choice?.message?.content ?? '').trim();
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   const jsonStr = jsonMatch?.[0] ?? '{}';
@@ -101,25 +103,13 @@ Assess if this evidence is sufficient to conclude the test.`;
   if (typeof parsed.reasoning !== 'string') parsed.reasoning = String(parsed.reasoning ?? '');
   if (!Array.isArray(parsed.recommendations)) parsed.recommendations = [];
 
-  const usageMetadata = response.usageMetadata;
-  const inputTokens = usageMetadata?.promptTokenCount ?? 0;
-  const outputTokens = usageMetadata?.candidatesTokenCount ?? 0;
+  const usage = chatCompletion.usage;
+  const inputTokens = usage?.prompt_tokens ?? 0;
+  const outputTokens = usage?.completion_tokens ?? 0;
 
   return {
     result: parsed,
     prompt: userContent,
     usage: { inputTokens, outputTokens },
   };
-}
-
-export async function getAvailableModels(apiKey: string): Promise<{ name?: string }[]> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed to list models: ${res.status} ${err}`);
-  }
-  const data = (await res.json()) as { models?: { name?: string }[] };
-  return data.models ?? [];
 }
