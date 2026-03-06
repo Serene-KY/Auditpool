@@ -2,7 +2,41 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { fetchDashboardStats, type DashboardStats } from '@/lib/api';
+import {
+  fetchDashboardStats,
+  fetchTenants,
+  fetchFrameworks,
+  fetchWorkflowStatus,
+  type DashboardStats,
+  type Tenant,
+  type WorkflowStatus,
+} from '@/lib/api';
+
+const WORKFLOW_STAGES = [
+  'Framework',
+  'Scope',
+  'Risk Assessment',
+  'Control Mapping',
+  'Test Design',
+  'Fieldwork',
+  'Evidence Review',
+  'Conclusion',
+];
+
+const STAGE_TO_CURRENT_INDEX: Record<string, number> = {
+  PLANNING: 0,
+  RISK_ASSESSMENT: 2,
+  CONTROL_MAPPING: 3,
+  TEST_DESIGN: 4,
+  FIELDWORK: 5,
+  EVIDENCE_REVIEW: 6,
+  CONCLUSION: 7,
+  COMPLETE: 8,
+};
+
+function getCurrentStepIndex(stage: string): number {
+  return STAGE_TO_CURRENT_INDEX[stage] ?? 0;
+}
 
 const links = [
   { href: '/frameworks', label: 'Frameworks' },
@@ -97,14 +131,30 @@ function ProgressBar({ value }: { value: number }) {
 }
 
 export default function DashboardPage() {
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    fetchTenants()
+      .then((list) => {
+        setTenants(list);
+        if (list.length > 0 && !selectedTenantId) {
+          setSelectedTenantId(list[0].id);
+        }
+      })
+      .catch(() => setTenants([]));
+  }, []);
+
   const load = useCallback(async () => {
+    if (!selectedTenantId) return;
     setError(null);
     try {
-      const data = await fetchDashboardStats();
+      const data = await fetchDashboardStats(selectedTenantId);
       setStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load stats');
@@ -112,29 +162,141 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedTenantId]);
+
+  const loadWorkflow = useCallback(async () => {
+    if (!selectedTenantId) return;
+    setWorkflowLoading(true);
+    try {
+      const frameworks = await fetchFrameworks(selectedTenantId);
+      if (frameworks.length > 0) {
+        const status = await fetchWorkflowStatus(selectedTenantId, frameworks[0].id);
+        setWorkflowStatus(status);
+      } else {
+        setWorkflowStatus(null);
+      }
+    } catch {
+      setWorkflowStatus(null);
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }, [selectedTenantId]);
 
   useEffect(() => {
+    if (!selectedTenantId) return;
+    setLoading(true);
     load();
+  }, [selectedTenantId, load]);
+
+  useEffect(() => {
+    if (!selectedTenantId) return;
+    loadWorkflow();
+  }, [selectedTenantId, loadWorkflow]);
+
+  useEffect(() => {
+    if (!selectedTenantId) return;
     const id = setInterval(load, 30000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [selectedTenantId, load]);
 
   const totalChain = (stats?.riskCount ?? 0) + (stats?.controlCount ?? 0) + (stats?.testCount ?? 0);
   const totalGaps = (stats?.risksWithoutControls ?? 0) + (stats?.controlsWithoutTests ?? 0) + (stats?.testsWithoutEvidence ?? 0);
   const progress = totalChain === 0 ? 100 : Math.round(100 * (1 - totalGaps / totalChain));
+  const currentStepIndex = workflowStatus ? getCurrentStepIndex(workflowStatus.current_stage) : 0;
 
   return (
     <div className="p-8">
       <h1 className="text-2xl font-semibold text-slate-800 mb-6">Dashboard</h1>
 
-      {loading && !stats && (
+      <div className="mb-6">
+        <label htmlFor="tenant-select" className="block text-sm font-medium text-slate-700 mb-2">
+          Tenant
+        </label>
+        <select
+          id="tenant-select"
+          value={selectedTenantId}
+          onChange={(e) => setSelectedTenantId(e.target.value)}
+          className="w-full max-w-xs px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+        >
+          <option value="">Select Tenant</option>
+          {tenants.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading && !stats && selectedTenantId && (
         <p className="text-slate-500">Loading statistics…</p>
       )}
       {error && <p className="text-red-600 mb-4">{error}</p>}
 
-      {stats && (
+      {selectedTenantId && stats && (
         <>
+          {/* ISA Workflow Roadmap */}
+          <div className="mb-8 p-6 bg-white rounded-lg shadow border border-slate-200">
+            <h2 className="text-lg font-medium text-slate-800 mb-4">ISA Audit Workflow</h2>
+
+            {workflowLoading ? (
+              <p className="text-slate-500 text-sm">Loading workflow status...</p>
+            ) : workflowStatus ? (
+              <>
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-slate-600">Readiness</span>
+                    <span className="font-medium text-slate-800">{workflowStatus.readiness_score}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, workflowStatus.readiness_score)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {WORKFLOW_STAGES.map((label, i) => {
+                    const isComplete = i < currentStepIndex || workflowStatus.current_stage === 'COMPLETE';
+                    const isCurrent = i === currentStepIndex && workflowStatus.current_stage !== 'COMPLETE';
+                    return (
+                      <span
+                        key={label}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                          isComplete
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : isCurrent
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {workflowStatus.blocking_issues.length > 0 && (
+                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm font-medium text-red-800 mb-2">Blocking issues</p>
+                    <ul className="space-y-1 text-sm text-red-700 list-disc list-inside">
+                      {workflowStatus.blocking_issues.map((issue, i) => (
+                        <li key={i}>
+                          {issue.message ?? issue.type}
+                          {issue.control_id && ` (control: ${issue.control_id.slice(0, 8)}...)`}
+                          {issue.test_id && ` (test: ${issue.test_id.slice(0, 8)}...)`}
+                          {issue.risk_id && ` (risk: ${issue.risk_id.slice(0, 8)}...)`}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-amber-600 text-sm">No frameworks found. Create a framework first.</p>
+            )}
+          </div>
+
           {/* Progress */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow border border-slate-200">
             <h2 className="text-lg font-medium text-slate-800 mb-2">Audit completeness</h2>

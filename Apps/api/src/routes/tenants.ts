@@ -5,7 +5,7 @@ export async function registerTenantsRoutes(app: FastifyInstance) {
   app.get('/tenants', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const { rows } = await pool.query(
-        `SELECT id, name FROM tenants WHERE is_deleted = false ORDER BY name ASC`
+        `SELECT id, name, created_at FROM tenants ORDER BY name ASC`
       );
       return reply.send(rows);
     } catch (err) {

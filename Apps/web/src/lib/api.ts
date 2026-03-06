@@ -78,13 +78,30 @@ function headersWithTenant(tenantId: string) {
   return { 'Content-Type': 'application/json' as const, 'x-tenant-id': tenantId };
 }
 
-export async function runPreparer(tenantId: string): Promise<PreparerResult> {
+export interface Framework {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export async function fetchFrameworks(tenantId: string): Promise<Framework[]> {
+  const url = `${API_URL}/frameworks`;
+  try {
+    const res = await fetch(url, { headers: headersWithTenant(tenantId) });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    return res.json();
+  } catch (err) {
+    throw wrapFetchError(err, url);
+  }
+}
+
+export async function runPreparer(tenantId: string, frameworkId?: string): Promise<PreparerResult> {
   const url = `${API_URL}/mcp/prepare`;
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: headersWithTenant(tenantId),
-      body: JSON.stringify({}),
+      body: JSON.stringify(frameworkId ? { framework_id: frameworkId } : {}),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -122,17 +139,6 @@ export async function fetchWorkflowStatus(
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `API error: ${res.status}`);
     }
-    return res.json();
-  } catch (err) {
-    throw wrapFetchError(err, url);
-  }
-}
-
-export async function fetchFrameworks(tenantId: string): Promise<Array<{ id: string; name: string }>> {
-  const url = `${API_URL}/frameworks`;
-  try {
-    const res = await fetch(url, { headers: headersWithTenant(tenantId) });
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
     return res.json();
   } catch (err) {
     throw wrapFetchError(err, url);
